@@ -44,14 +44,13 @@ jobs:
 
       - name: 🔄 Validate credentials
         run: |
-          # Test credentials using Python directly
-          python -c "
-          from kaggle.api.kaggle_api_extended import KaggleApi
-          api = KaggleApi()
-          api.authenticate()
-          print('Successfully authenticated!')
-          print(api.competitions_list(max_results=1))
-          "
+            python -c "
+            from kaggle.api.kaggle_api_extended import KaggleApi
+            api = KaggleApi()
+            api.authenticate()
+            print('Successfully authenticated!')
+            print(api.competitions_list(search='titanic'))"
+
 
       - name: 🧠 Download notebooks
         run: python scripts/download_notebooks.py

@@ -3,7 +3,7 @@ name: Auto-update Kaggle notebooks
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 6 * * *'  # runs every day at 6:00 UTC
+    - cron: '0 6 * * *'
 
 jobs:
   update-notebooks:
@@ -20,44 +20,38 @@ jobs:
 
       - name: 🔑 Setup Kaggle credentials
         run: |
-          # Create config directory with correct permissions
+          # Create fresh config directory
+          rm -rf ~/.kaggle
           mkdir -p ~/.kaggle
+          
+          # Write credentials with proper formatting
           echo "{\"username\":\"$KAGGLE_USERNAME\",\"key\":\"$KAGGLE_KEY\"}" > ~/.kaggle/kaggle.json
           chmod 600 ~/.kaggle/kaggle.json
           
-          # Debug output
+          # Verify file contents
           echo "=== Kaggle config ==="
           cat ~/.kaggle/kaggle.json
           echo "=== File permissions ==="
           ls -la ~/.kaggle/
-        env:
-          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
-          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
 
-      - name: 📦 Install dependencies
+      - name: 📦 Install Kaggle API
         run: |
-          python -m pip install --upgrade pip
-          pip install kaggle nbconvert ipykernel jq
-          echo "=== Installed packages ==="
-          pip list | grep -E 'kaggle|nbconvert'
+          pip install --upgrade pip
+          pip uninstall -y kaggle || true
+          pip install kaggle==1.5.12  # Known stable version
+          echo "Kaggle path: $(which kaggle)"
+          kaggle --version
 
       - name: 🔄 Validate credentials
         run: |
-          # Verify credentials file exists
-          echo "=== Credentials verification ==="
-          [ -f ~/.kaggle/kaggle.json ] && echo "Credentials file exists" || echo "Missing credentials file"
-          
-          # Test direct API call
-          echo "=== Testing API with curl ==="
-          curl -s -H "Authorization: Bearer $(jq -r '.key' ~/.kaggle/kaggle.json)" \
-            "https://www.kaggle.com/api/v1/competitions/list?page=1" | jq .
-          
-          # Test Kaggle CLI
-          echo "=== Testing Kaggle CLI ==="
-          python -m kaggle competitions list --page-size 1
-        env:
-          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
-          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+          # Test credentials using Python directly
+          python -c "
+          from kaggle.api.kaggle_api_extended import KaggleApi
+          api = KaggleApi()
+          api.authenticate()
+          print('Successfully authenticated!')
+          print(api.competitions_list(max_results=1))
+          "
 
       - name: 🧠 Download notebooks
         run: python scripts/download_notebooks.py
@@ -68,3 +62,7 @@ jobs:
           git config user.email github-actions@github.com
           git add .
           git diff --cached --quiet || (git commit -m "📚 Auto-update notebooks" && git push)
+
+    env:
+      KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+      KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}

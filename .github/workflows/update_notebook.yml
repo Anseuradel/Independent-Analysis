@@ -18,7 +18,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: 🔑 Setup Kaggle credentials (Primary Method)
+      - name: 🔑 Setup Kaggle credentials
         run: |
           mkdir -p ~/.kaggle
           echo '{"username":"${{ secrets.KAGGLE_USERNAME }}","key":"${{ secrets.KAGGLE_KEY }}"}' > ~/.kaggle/kaggle.json
@@ -33,13 +33,17 @@ jobs:
           pip install kaggle nbconvert ipykernel
           pip install -r requirements.txt
 
-      - name: 🧠 Download Independent Analysis Kaggle Notebooks
+      - name: 🧪 Verify Kaggle API
         run: |
-          # Test Kaggle authentication first
+          # Check version
           kaggle --version
-          kaggle competitions list --max-items 3
-          # Run your download script
-          python scripts/download_notebooks.py
+          # Test API connectivity with a simple command
+          kaggle competitions list -v
+          # List some datasets to verify authentication
+          kaggle datasets list --sort-by updated --page-size 3
+
+      - name: 🧠 Download Independent Analysis Kaggle Notebooks
+        run: python scripts/download_notebooks.py
 
       - name: 📝 Commit changes if any
         run: |

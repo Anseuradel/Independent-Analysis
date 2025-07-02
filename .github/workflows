@@ -1,0 +1,116 @@
+name: Sync Kaggle Notebooks
+
+on: [workflow_dispatch]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install --upgrade pip kaggle nbconvert ipykernel
+
+      - name: Configure Kaggle API
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          mkdir -p ~/.kaggle
+          echo '{"username":"'$KAGGLE_USERNAME'","key":"'$KAGGLE_KEY'"}' > ~/.kaggle/kaggle.json
+          chmod 600 ~/.kaggle/kaggle.json
+
+      - name: Clean Previous Outputs
+        run: |
+          rm -rf Independent-Analysis
+          mkdir -p Independent-Analysis
+
+      - name: Download Datasets
+        run: |
+          # Global Country Information
+          kaggle datasets download -d nelgiriyewithana/countries-of-the-world-2023 -p Independent-Analysis/1_Global_Country_EDA
+          unzip -o Independent-Analysis/1_Global_Country_EDA/countries-of-the-world-2023.zip -d Independent-Analysis/1_Global_Country_EDA
+          rm Independent-Analysis/1_Global_Country_EDA/countries-of-the-world-2023.zip
+
+          # Superstore Sales
+          kaggle datasets download -d bhanupratapbiswas/superstore-sales -p Independent-Analysis/2_Superstore_Sales
+          unzip -o Independent-Analysis/2_Superstore_Sales/superstore-sales.zip -d Independent-Analysis/2_Superstore_Sales
+          rm Independent-Analysis/2_Superstore_Sales/superstore-sales.zip
+
+          # Japanese Universities
+          kaggle datasets download -d webdevbadger/japanese-universities -p Independent-Analysis/3_Japanese_Universities
+          unzip -o Independent-Analysis/3_Japanese_Universities/japanese-universities.zip -d Independent-Analysis/3_Japanese_Universities
+          rm Independent-Analysis/3_Japanese_Universities/japanese-universities.zip
+
+          # Popular Movies
+          kaggle datasets download -d joebeachcapital/top-10000-most-popular-movies-from-imdb -p Independent-Analysis/4_Popular_Movies
+          unzip -o Independent-Analysis/4_Popular_Movies/top-10000-most-popular-movies-from-imdb.zip -d Independent-Analysis/4_Popular_Movies
+          rm Independent-Analysis/4_Popular_Movies/top-10000-most-popular-movies-from-imdb.zip
+
+          # Apple Quality
+          kaggle datasets download -d nelgiriyewithana/apple-quality -p Independent-Analysis/5_Apple_Quality
+          unzip -o Independent-Analysis/5_Apple_Quality/apple-quality.zip -d Independent-Analysis/5_Apple_Quality
+          rm Independent-Analysis/5_Apple_Quality/apple-quality.zip
+
+      - name: Download Notebooks into Named Subfolders
+        run: |
+          # Global Country EDA
+          mkdir -p Independent-Analysis/1_Global_Country_EDA/images
+          kaggle kernels pull adelanseur/global-country-information-eda -p Independent-Analysis/1_Global_Country_EDA
+          mv Independent-Analysis/1_Global_Country_EDA/global-country-information-eda.ipynb Independent-Analysis/1_Global_Country_EDA/1_Global_Country_EDA.ipynb
+
+          # Superstore Sales
+          mkdir -p Independent-Analysis/2_Superstore_Sales/images
+          kaggle kernels pull adelanseur/superstore-sales-eda-ml -p Independent-Analysis/2_Superstore_Sales
+          mv Independent-Analysis/2_Superstore_Sales/superstore-sales-eda-ml.ipynb Independent-Analysis/2_Superstore_Sales/2_Superstore_Sales.ipynb
+
+          # Japanese Universities
+          mkdir -p Independent-Analysis/3_Japanese_Universities/images
+          kaggle kernels pull adelanseur/japanese-universities-eda -p Independent-Analysis/3_Japanese_Universities
+          mv Independent-Analysis/3_Japanese_Universities/japanese-universities-eda.ipynb Independent-Analysis/3_Japanese_Universities/3_Japanese_Universities.ipynb
+
+          # Popular Movies
+          mkdir -p Independent-Analysis/4_Popular_Movies/images
+          kaggle kernels pull adelanseur/eda-predictive-analysis-most-popular-movies -p Independent-Analysis/4_Popular_Movies
+          mv Independent-Analysis/4_Popular_Movies/eda-predictive-analysis-most-popular-movies.ipynb Independent-Analysis/4_Popular_Movies/4_Popular_Movies.ipynb
+
+          # Apple Quality
+          mkdir -p Independent-Analysis/5_Apple_Quality/images
+          kaggle kernels pull adelanseur/ml-eda-apple-quality -p Independent-Analysis/5_Apple_Quality
+          mv Independent-Analysis/5_Apple_Quality/ml-eda-apple-quality.ipynb Independent-Analysis/5_Apple_Quality/5_Apple_Quality.ipynb
+
+      - name: Execute and Convert to HTML
+        run: |
+          for folder in Independent-Analysis/*/; do
+            base=$(basename "$folder")
+            ipynb="$folder/$base.ipynb"
+            html="$folder/$base.html"
+
+            echo "▶️ Executing $ipynb"
+            jupyter nbconvert --to notebook --inplace --execute --ExecutePreprocessor.timeout=300 "$ipynb" || echo "⚠️ Execution failed for $ipynb"
+
+            echo "🌐 Converting to HTML: $html"
+            jupyter nbconvert --to html --output "$html" "$ipynb" || echo "⚠️ Conversion failed for $ipynb"
+          done
+
+      - name: Commit Changes
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+
+          git add -f Independent-Analysis/**/*
+          git status
+
+          git commit -m "chore: Sync and update 6 notebooks and datasets on $(date +'%Y-%m-%d')" || \
+            (echo "⚠️ No changes to commit" && git commit --allow-empty -m "chore: No notebook or dataset changes but ran successfully")
+
+          git push

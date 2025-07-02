@@ -26,33 +26,38 @@ jobs:
           chmod 600 ~/.kaggle/kaggle.json
           
           # Debug output
-          echo "Kaggle config file contents:"
+          echo "=== Kaggle config ==="
           cat ~/.kaggle/kaggle.json
-          echo "File permissions:"
+          echo "=== File permissions ==="
           ls -la ~/.kaggle/
-        env:
-          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
-          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
-
-      - name: 🔄 Validate credentials
-        run: |
-          # Test direct API call
-          echo "Testing API with curl..."
-          curl -s -H "Authorization: Bearer $(jq -r '.key' ~/.kaggle/kaggle.json)" \
-            "https://www.kaggle.com/api/v1/competitions/list?page=1" | jq .
-          
-          # Test Kaggle CLI
-          echo "Testing Kaggle CLI..."
-          kaggle competitions list --page-size 1
         env:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
 
       - name: 📦 Install dependencies
         run: |
-          pip install --upgrade pip
-          pip install kaggle==1.7.0 nbconvert ipykernel
-          pip install -r requirements.txt
+          python -m pip install --upgrade pip
+          pip install kaggle nbconvert ipykernel jq
+          echo "=== Installed packages ==="
+          pip list | grep -E 'kaggle|nbconvert'
+
+      - name: 🔄 Validate credentials
+        run: |
+          # Verify credentials file exists
+          echo "=== Credentials verification ==="
+          [ -f ~/.kaggle/kaggle.json ] && echo "Credentials file exists" || echo "Missing credentials file"
+          
+          # Test direct API call
+          echo "=== Testing API with curl ==="
+          curl -s -H "Authorization: Bearer $(jq -r '.key' ~/.kaggle/kaggle.json)" \
+            "https://www.kaggle.com/api/v1/competitions/list?page=1" | jq .
+          
+          # Test Kaggle CLI
+          echo "=== Testing Kaggle CLI ==="
+          python -m kaggle competitions list --page-size 1
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
 
       - name: 🧠 Download notebooks
         run: python scripts/download_notebooks.py
